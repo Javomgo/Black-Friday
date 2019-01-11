@@ -1,0 +1,22 @@
+---
+title: "Trabajo Final Black Friday"
+author: "Javier Ortiz Montenegro"
+date: "11 de enero de 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+bf.df = read_csv("BlackFriday.csv")
+bf.df %>% summary()
+bf.df %>% str()
+bf.df = mutate(bf.df[,-c(10:11)]) %>% na.omit %>% droplevels()
+```
