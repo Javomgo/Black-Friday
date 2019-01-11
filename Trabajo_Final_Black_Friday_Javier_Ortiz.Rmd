@@ -18,5 +18,7 @@ library(tidyverse)
 bf.df = read_csv("BlackFriday.csv")
 bf.df %>% summary()
 bf.df %>% str()
+bf.df %>% head() 
+bf.df %>% tail()
 bf.df = mutate(bf.df[,-c(10:11)]) %>% na.omit %>% droplevels()
 ```
