@@ -9,16 +9,62 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+Se cargan las diversas librerías necesarias.
+
+```{r warning = F, message = F}
 library(tidyverse)
+library(webshot)
+library(GGally)
+library(igraph)
 ```
 
+Lo primero a la hora de tratar los datos será su carga, comprobación, limpieza de NAs, y transformación de las variables a formatos optimos.
 
 ```{r}
-bf.df = read_csv("BlackFriday.csv")
-bf.df %>% summary()
+bf.df = read_csv("BlackFriday.csv") #Se cargan directamente los datos en una tibble
+bf.df %>% summary() #Se comprueban los datos que contiene para saber como tratarlos
 bf.df %>% str()
 bf.df %>% head() 
 bf.df %>% tail()
-bf.df = mutate(bf.df[,-c(10:11)]) %>% na.omit %>% droplevels()
+bf.df = mutate(bf.df[,-c(10:11)]) %>% na.omit %>% droplevels() #Se eliminan NAs (Especialmente concentrados en las columnas Product_Category 2 y 3)
+bf.df = bf.df[!duplicated(bf.df),] #Se eliminan duplicados en caso de haberlos
+bf.df$User_ID = bf.df$User_ID - 1000000 #Se convierten User_ID en números del 1 al 6040
+bf.df$Product_ID = as.factor(bf.df$Product_ID) #Se transforman a factor los datos que se considera oportuno
+bf.df$Gender = as.factor(bf.df$Gender)
+bf.df$Age = as.factor(bf.df$Age)
+bf.df$City_Category = as.factor(bf.df$City_Category)
+bf.df$Marital_Status = as.factor(bf.df$Marital_Status)
+bf.df$Stay_In_Current_City_Years = as.factor(bf.df$Stay_In_Current_City_Years)
+bf.df$Product_Category_1 = as.factor(bf.df$Product_Category_1)
+bf.df$Occupation = as.factor(bf.df$Occupation)
+bf.df %>% summary() #De nuevo se comprueban los datos para confirmar que ya estén "limpios"
+bf.df %>% str()
 ```
+
+Se integra una gráfica dinámica mediante shiny para realizar los cruces basicos del gasto y orientar hacia estudios interesantes de los datos.
+
+```{r}
+#En mi pc tarda un poco en cargar los gráficos. Espero que con un procesador más potente sea más fluido.
+knitr::include_app("http://127.0.0.1:3977", height = 750)
+```
+
+Es digno de mención el hecho de que la categoría de producto con mayor gasto es la 1 y sin embargo en unidades este puesto pertenece a la categoría 5 (Como se puede comprobar al realizar el summary).
+
+```{r}
+bf.df %>%  ggplot(aes(x = Product_Category_1, y = Purchase, color = Product_Category_1)) + geom_boxplot(show.legend = F) + xlab("Categoría de producto") + ylab("Gasto") + ggtitle("Gasto por categoría de producto") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+En este boxplot se puede comprobar como las categorías que más han vendido en el black friday no son productos que pertenezcan a una categoría de lujo (La categoría 1 es más cara que la 5 y la 8, pero aún así sería discutible catalogar dicha categoría como articulos de lujo).
+
+
+Compras hombres vs compra mujeres por categorías, 
+
+```{r}
+bf.df %>% ggplot(aes(x = Product_Category_1, y = Purchase, color = Age)) + geom_bar(show.legend = T, stat = "identity") + xlab("Categoría de producto") + ylab("Gasto") + ggtitle("Gasto por categoría de producto mujeres frente a hombres") + facet_wrap(~ Gender) + theme(plot.title = element_text(hjust = 0.5))
+```
+
+Como se pude comprobar practicamente todas las categorías tienen un gasto mayor cuando el genero es hombre, no obstante, el mayor aumento con diferencia es en la categoría producto 1, lo cual hace pensar que es una categoría especialmente atractiva para el cliente masculino.
+
+
+
+
