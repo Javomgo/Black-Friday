@@ -15,7 +15,7 @@ Se cargan las diversas librerías necesarias.
 library(tidyverse)
 library(webshot)
 library(GGally)
-library(igraph)
+library(recommenderlab)
 ```
 
 Lo primero a la hora de tratar los datos será su carga, comprobación, limpieza de NAs, y transformación de las variables a formatos optimos.
@@ -29,7 +29,8 @@ bf.df %>% tail()
 bf.df = mutate(bf.df[,-c(10:11)]) %>% na.omit %>% droplevels() #Se eliminan NAs (Especialmente concentrados en las columnas Product_Category 2 y 3)
 bf.df = bf.df[!duplicated(bf.df),] #Se eliminan duplicados en caso de haberlos
 bf.df$User_ID = bf.df$User_ID - 1000000 #Se convierten User_ID en números del 1 al 6040
-bf.df$Product_ID = as.factor(bf.df$Product_ID) #Se transforman a factor los datos que se considera oportuno
+bf.df$User_ID = as.factor(bf.df$User_ID) #Se transforman a factor los datos que se considera oportuno
+bf.df$Product_ID = as.factor(bf.df$Product_ID) 
 bf.df$Gender = as.factor(bf.df$Gender)
 bf.df$Age = as.factor(bf.df$Age)
 bf.df$City_Category = as.factor(bf.df$City_Category)
@@ -65,6 +66,24 @@ bf.df %>% ggplot(aes(x = Product_Category_1, y = Purchase, color = Age)) + geom_
 
 Como se pude comprobar practicamente todas las categorías tienen un gasto mayor cuando el genero es hombre, no obstante, el mayor aumento con diferencia es en la categoría producto 1, lo cual hace pensar que es una categoría especialmente atractiva para el cliente masculino.
 
+El siguiente gráfico es una combinación de distintos cruces entre variables, los colores corresponden de la siguiente manera: Rojo = Mujer, Azul = hombre.
 
+```{r}
+ggpairs(bf.df[,c(6,7,8,10)], cardinality_threshold = 21, aes(color = bf.df$Gender, alpha = 0.5))
+```
 
+La mayoría de cruces aportan información que ya se conocia anteriormente, sin embargo hay dos gráficos que llaman mi atencion. 
+En primer lugar se puede ver como el gasto según categoría de ciudad es cercano para hombres y mujeres excepto para la categoría 1 donde aumenta la diferencia y los hombres tienen un gasto aún mayor.
+En segundo lugar la ultima gráfica deja ver como las mujeres sobresalen en la zona entre los 5000 y 10000 y los hombres por su parte tienen los tres picos en aproximadamente 11500, 15500 y 19000 donde el gasto es mucho mayor que el de las mujeres.
+
+Una vez comprobados los datos y tras realizar un análisis por encima de los mismos se puede confirmar que si una empresa decidiera entrar en el mercado la recomendación sería fabricar productos de la categoría 1, y tener una inversión en marketing especialmente dedicada a hombres entre 26 y 35 años, soltero, que resida desde hace un año en una ciudad de categoría B, y que se dedique a la profesión 0, 4 ó 7.
+
+Para profundizar más podría realizar una predicción de las ventas en caso de pretender vender unicamente a ese objetivo y dedicarse a la categoría de producto 1, o realizar una clasificación de la edad de un comprador según el resto de variables, pero este tipo de modelos ya los he realizado en otras asignaturas.
+Por lo tanto me decantaré por un sistema de recomendación, modelo que aún no he trabajado y que también tiene sentido con estos datos.
+
+```{r}
+bf.rec = data.matrix(bf.df)
+bf.rec = as(bf.rec, "realRatingMatrix")
+ubcf = Recommender(data = bf.rec, method = "UBCF")
+```
 
