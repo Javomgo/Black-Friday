@@ -16,6 +16,7 @@ library(tidyverse)
 library(webshot)
 library(GGally)
 library(recommenderlab)
+library(caret)
 ```
 
 Lo primero a la hora de tratar los datos será su carga, comprobación, limpieza de NAs, y transformación de las variables a formatos optimos.
@@ -68,13 +69,13 @@ Como se pude comprobar practicamente todas las categorías tienen un gasto mayor
 
 El siguiente gráfico es una combinación de distintos cruces entre variables, los colores corresponden de la siguiente manera: Rojo = Mujer, Azul = hombre.
 
-```{r}
-ggpairs(bf.df[,c(6,7,8,10)], cardinality_threshold = 21, aes(color = bf.df$Gender, alpha = 0.5))
+```{r message = F}
+bfcant.df = bf.df %>% group_by(User_ID) %>% summarise(Gender = Gender[1],Age = Age[1],Occupation = Occupation[1], City_Category = City_Category[1], Stay_In_Current_City_Years = Stay_In_Current_City_Years[1], Marital_Status = Marital_Status[1], Item_Count = n()) 
+#Se juntan los compradores para no desvirtuar los resultados de las próximas graficas al cruzar variables factor entre ellas ya que de no ser así se contabilizarían de forma multiple los usuarios con más de una compra.
+ggpairs(bfcant.df[,c(5:8)], cardinality_threshold = 21, aes(color = bfcant.df$Gender, alpha = 0.5))
 ```
 
-La mayoría de cruces aportan información que ya se conocia anteriormente, sin embargo hay dos gráficos que llaman mi atencion. 
-En primer lugar se puede ver como el gasto según categoría de ciudad es cercano para hombres y mujeres excepto para la categoría 1 donde aumenta la diferencia y los hombres tienen un gasto aún mayor.
-En segundo lugar la ultima gráfica deja ver como las mujeres sobresalen en la zona entre los 5000 y 10000 y los hombres por su parte tienen los tres picos en aproximadamente 11500, 15500 y 19000 donde el gasto es mucho mayor que el de las mujeres.
+Las gráficas no muestran mucha información nueva, la mayoría de la información que ya se había podido visualizar en la gráfica interactiva.
 
 Una vez comprobados los datos y tras realizar un análisis por encima de los mismos se puede confirmar que si una empresa decidiera entrar en el mercado la recomendación sería fabricar productos de la categoría 1, y tener una inversión en marketing especialmente dedicada a hombres entre 26 y 35 años, soltero, que resida desde hace un año en una ciudad de categoría B, y que se dedique a la profesión 0, 4 ó 7.
 
@@ -82,8 +83,49 @@ Para profundizar más podría realizar una predicción de las ventas en caso de 
 Por lo tanto me decantaré por un sistema de recomendación, modelo que aún no he trabajado y que también tiene sentido con estos datos.
 
 ```{r}
+bf.rec = as(bf.df[,], "realRatingMatrix")
+bf.df$Product_ID = as.character(bf.df$Product_ID)
 bf.rec = data.matrix(bf.df)
 bf.rec = as(bf.rec, "realRatingMatrix")
-ubcf = Recommender(data = bf.rec, method = "UBCF")
+bf.rec[,2] = bf.df$Product_ID
+
+train = bf.rec[1:430061]
+test = bf.rec[430062:430072]
+rec = Recommender(train, method = "IBCF")
+recom_hibrida = HybridRecommender(
+  Recommender(train, method = "UBCF"),
+  Recommender(train, method = "RANDOM"),
+  weights = c(0.8, 0.2))
+
+as(predict(rec, test, 5), "list")
+```
+
+```{r}
+bfcant.df = bf.df %>%
+  gather(observation, Val, Product_ID) %>%
+  group_by(User_ID,observation, Val) %>%
+  summarise(n= n()) %>%
+  ungroup() %>%
+  spread(Val, n, fill=0)
+bfcant.df = bfcant.df[,-c(1,2)]
+```
+
+
+```{r}
+bf.bin = data.matrix(bfcant.df)
+bf.bin = as(bf.bin, "binaryRatingMatrix")
+sep = sample(x= c(T, F),
+             size = nrow(bf.bin),
+             replace = T,
+             prob = c(0.8, 0.2))
+train = bf.bin[sep,]
+test = bf.bin[!sep,]
+rec = Recommender(train, method = "IBCF", parameter = list(method = "Jaccard"))
+getModel(rec)
+pred = predict(object = rec, newdata = test, n = 10)
+rec.matrix = sapply(pred@items, function(x){
+                            colnames(bf.bin[,x])
+})
+View(rec.matrix[,1:5])
 ```
 
