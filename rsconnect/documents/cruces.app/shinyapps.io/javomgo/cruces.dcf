@@ -1,0 +1,12 @@
+name: cruces
+title: cruces
+username:
+account: javomgo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 661707
+bundleId: 1832588
+url: https://javomgo.shinyapps.io/cruces/
+when: 1548273794.06981
+asMultiple: FALSE
+asStatic: FALSE
