@@ -47,7 +47,7 @@ Se integra una gráfica dinámica mediante shiny para realizar los cruces basico
 
 ```{r}
 #En mi pc tarda un poco en cargar los gráficos. Espero que con un procesador más potente sea más fluido.
-#knitr::include_app("http://127.0.0.1:3977", height = 750)
+#knitr::include_app("http://127.0.0.1:4231", height = 750)
 ```
 
 Es digno de mención el hecho de que la categoría de producto con mayor gasto es la 1 y sin embargo en unidades este puesto pertenece a la categoría 5 (Como se puede comprobar al realizar el summary).
@@ -101,40 +101,66 @@ bf.bin = data.matrix(bfcant.df)
 bf.bin = as(bf.bin, "binaryRatingMatrix")
 ```
 
-Una vez tratados los datos se pasa al entrenamiento y predicción del modelo con la previa separación de los datos en entrenamiento y prueba.
-Se realizará una recomendación con un 80% de los productos recomendados por correlación entre usuarios (Un usuario ha comprado el producto x pues se recomiendan productos comprados por otros usuarios que también han comprado ese producto x), y un 20% de recomendación aleatoria para no recomendarle a una persona siempre los mismos productos.
+Una vez tratados los datos se pasa al entrenamiento y predicción del modelo de recomendación, inicialmente se realizará una evaluación mediante validación cruzada para, de esta manera, seleccionar el mejor modelo de recomendación. Una vez seleccionado el modelo que mejor se adapte a las necesidades se construirá un modelo hibrido para que un porcentaje de las recomendaciones salgan de la "zona de confort" del usuario.
 
 ```{r}
 set.seed(2019)
+
+#Seleccion de usuarios con al menos 40 compras y productos comprados como mínimo 80 veces.
 bf.bin = bf.bin[rowCounts(bf.bin) > 40,
                 colCounts(bf.bin) > 80]
+
 #Se usa validación cruzada para validar las recomendaciones.
 eval_sets = evaluationScheme(data = bf.bin,
                              method = "cross-validation",
                              k = 5,
-                             given = 15)
+                             given = 20)
 
-modelos = list(IBCF_cos = list(name = "IBCF", params = list(method = "cosine")),
-               IBCF_cor = list(name = "IBCF", params = list(method = "pearson")),
-               IBCF_jac = list(name = "IBCF", params = list(method = "Jaccard")),
-               UBCF_cos = list(name = "UBCF", params = list(method = "cosine")),
-               UBCF_cor = list(name = "UBCF", params = list(method = "pearson")),
-               UBCF_jac = list(name = "UBCF", params = list(method = "Jaccard")),
+#Los modelos a comparar son basados en usuarios, basados en items (mediante distintos metodos), y por ultimo un modelo aleatorio.
+modelos = list(IBCF.cos = list(name = "IBCF", params = list(method = "cosine")),
+               IBCF.cor = list(name = "IBCF", params = list(method = "pearson")),
+               IBCF.jac = list(name = "IBCF", params = list(method = "Jaccard")),
+               UBCF.cos = list(name = "UBCF", params = list(method = "cosine")),
+               UBCF.cor = list(name = "UBCF", params = list(method = "pearson")),
+               UBCF.jac = list(name = "UBCF", params = list(method = "Jaccard")),
                random = list(name = "RANDOM", params = NULL))
 
 resul = evaluate(x = eval_sets,
                  method = modelos,
                  n = c(1:7, seq(10,100,10)))
-plot(resul, annotate = 1, legend = "topleft") + title("Curva AUC")
-plot(resul, "prec/rec", annotate = 1, legend = "bottomright") + title("Precisión vs Eficacia")
-res = evaluate(x = eval_sets,
-                 method = "UBCF", parameter = list(method = "Jaccard"),
-                 n = seq(10,100,10))
-getConfusionMatrix(res)[[1]]
-plot(res, "prec/rec", annotate = T, main = "preciosión vs Eficacia")
-?Recommender
 ```
 
+Se comprueban los resultados de la validación cruzada mediante gráficos.
+
+```{r}
+plot(resul, annotate = 1, legend = "topleft") + title("Curva AUC")
+```
+
+Este primer gráfico muestra el ratio de verdaderos positivos, en el eje de ordenadas, frente al ratio de falsos positivos, en el eje de abscisas.
+Se puede extraer de dicho gráfico que los modelos basados en usuarios tienen un mejor ratio de verdaderos positivos frente a falsos.
+
+```{r}
+plot(resul, "prec/rec", annotate = 1, legend = "bottomright") + title("Precisión vs Eficacia")
+```
+
+En este caso, el gráfico cruza precisión contra eficacia se puede observar como el metodo de Jaccard produce mejores resultados con pocas recomendaciones y como el la intención es que se recomienden unos 10 productos dicho metodo es el apropiado.
+
+Se procede a una evaluación individual del modelo orientado a usuarios con Jaccard en mayor profundidad.
+
+```{r}
+res.jac = evaluate(x = eval_sets,
+                 method = "UBCF", parameter = list(method = "Jaccard"),
+                 n = seq(10,100,10))
+getConfusionMatrix(res.jac)[[1]]
+plot(res.jac, "prec/rec", annotate = T, main = "Precisión vs Eficacia (UBFC Jaccard)")
+```
+
+En la tabla hay datos interesantes sobre el modelo como son la precisión, el recall (eficacia), así como los ratios de verdaderos positivos y falsos positivos.
+
+No obstante, la precisión y la eficacia se interpretan con mayor facilidad en la tabla, con 10 recomendaciones la precisión (porcentaje de veces que el modelo recomienda un producto que realmente es comprado frente al total de recomendaciones realizadas) es del `r round(getConfusionMatrix(res.jac)[[1]][1,5] * 100, 2)`%. Lo que significa que si nos basamos en los resultados de esta evaluación si recomendamos 10 productos a cada usuario este considerará de su interés entre 3 y 4 de ellos.
+Por otro lado, la eficacia o recall (porcentaje de productos interesantes recomendados por el modelo sobre el total de productos interesantes para el usuario) es del `r round(getConfusionMatrix(res.jac)[[1]][1,6] * 100, 2)`%. No es de extrañar que el porcentaje sea tan bajo ya que unicamente se estan recomendando 10 productos, que con 10 productos se cubra el `r round(getConfusionMatrix(res.jac)[[1]][1,6] * 100, 2)`% del total de productos interesantes para un usuario parece ser más que decente.
+
+Una vez evaluado el modelo y comprobado que es el que mejor se adapata se procede a crear un modelo hibrido que recomiende 12 productos, 10 serán en base a usuario y 2 de manera aleatoria para que exista la posibilidad de que pase a productos nuevos que quizá no conocía.
 
 ```{r}
 #Se separan los datos en dos grupos, uno de entrenamiento y otro de prueba.
@@ -142,6 +168,7 @@ sep = sample(x= c(T, F),
              size = nrow(bf.bin),
              replace = T,
              prob = c(0.8, 0.2))
+
 train = bf.bin[sep,]
 test = bf.bin[!sep,]
 
@@ -149,12 +176,17 @@ test = bf.bin[!sep,]
 recom_hibrida = HybridRecommender(
   Recommender(train, method = "UBCF", parameter = list(method = "Jaccard")),
   Recommender(train, method = "RANDOM"),
-  weights = c(0.8, 0.2))
-#Se procede a la predicción con el subconjunto de test, y se muestran 10 recomendaciones para los 5 primeros usuarios.
-pred = predict(object = recom_hibrida, newdata = test, n = 10)
-rec.matrix2 = sapply(pred@items, function(x){
+  weights = c(0.85, 0.15))
+
+#Se procede a la predicción con el subconjunto de prueba.
+pred = predict(object = recom_hibrida, newdata = test, n = 12)
+rec.matrix = sapply(pred@items, function(x){
                             colnames(bf.bin[,x])
-})
-View(rec.matrix2[,1:5])
+  })
+
+#Se muestran 12 recomendaciones para los 5 primeros usuarios, de esta manera comprobamos que funcione correctamente.
+rec.matrix[,1:5]
 ```
 
+La matriz muestra las 12 recomendaciones del modelo hibrido para los 5 primeros usuarios del subconjunto de prueba. De esas 12 recomendaciones 10 son basadas en el usuario y 2 aleatorias.
+Sería mucho más interesante si se supiera que producto es el recomiendado, desafortunadamente la base de datos no lo especifica, unicamente muestra su código.
