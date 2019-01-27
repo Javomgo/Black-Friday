@@ -1,0 +1,13 @@
+name: bfapp
+title: bfapp
+username:
+account: javomgo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 668822
+bundleId: 1839444
+url: https://javomgo.shinyapps.io/bfapp/
+when: 1548587583.6491
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .gitattributes|.RData|BlackFriday.csv|Trabajo_Final_Black_Friday_Javier_Ortiz.html|Trabajo_Final_Black_Friday_Javier_Ortiz.Rmd|bf.cruces/server.R|bf.cruces/ui.R|Trabajo_Final_Black_Friday_Javier_Ortiz_files/figure-html/unnamed-chunk-4-1.png|Trabajo_Final_Black_Friday_Javier_Ortiz_files/figure-html/unnamed-chunk-5-1.png|Trabajo_Final_Black_Friday_Javier_Ortiz_files/figure-html/unnamed-chunk-6-1.png

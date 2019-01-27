@@ -1,0 +1,12 @@
+name: bfcru
+title: bfcru
+username:
+account: javomgo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 668826
+bundleId: 1839473
+url: https://javomgo.shinyapps.io/bfcru/
+when: 1548589280.6829
+asMultiple: FALSE
+asStatic: FALSE

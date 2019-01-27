@@ -17,6 +17,7 @@ library(webshot)
 library(GGally)
 library(recommenderlab)
 library(caret)
+library(reticulate)
 ```
 
 Lo primero a la hora de tratar los datos será su carga, comprobación, limpieza de NAs, y transformación de las variables a formatos optimos.
@@ -82,11 +83,11 @@ Una vez comprobados los datos y tras realizar un análisis por encima de los mis
 Para profundizar más podría realizar una predicción de las ventas en caso de pretender vender unicamente a ese objetivo y dedicarse a la categoría de producto 1, o realizar una clasificación de la edad de un comprador según el resto de variables, pero este tipo de modelos ya los he realizado en otras asignaturas.
 Por lo tanto me decantaré por un sistema de recomendación, modelo que aún no he trabajado y que también tiene sentido con estos datos.
 
-Se comienza con el tratamiento de los datos convirtiendo el data frame original en una matriz binaria que recoja el ID del usuario y los productos comprados. De esta manera se podrá utilizar el paquete recommenderlab para realizar el modelo y predicción de las recomendaciones.
+Se comienza con el tratamiento de los datos convirtiendo el data frame original en una matriz binaria que recoja el ID del usuario y los productos comprados. De esta manera se podrá realizar un clustering jerárquico y su representación por medio de un dendrograma para ver la agrupación de los usuarios, posteriormente se utilizará el paquete recommenderlab para realizar el modelo y predicción de las recomendaciones.
 
 ```{r}
 #Se transforma el data frame pasando cada factor de la columna Product_ID a una variable propia con el ID del producto y de esta manera transformar el data frame en una matriz binaria con 0 en caso de no haber comprado el producto y 1 en caso de si haberlo comprado.
-bfcant.df = bf.df %>%
+bfcant = bf.df %>%
   gather(observation, Val, Product_ID) %>%
   group_by(User_ID,observation, Val) %>%
   summarise(n= n()) %>%
@@ -94,21 +95,45 @@ bfcant.df = bf.df %>%
   spread(Val, n, fill=0)
 
 #Se eliminan las columnas 1 y 2 que corresponden a User_ID (ya recogido en el índice) y a una columna que recoge "Product_ID" ya que es el nombre de la columna original.
-bfcant.df = bfcant.df[,-c(1,2)]
+#De la misma manera únicamente seleccionamos los usuarios con más de 40 compras y los productos adquiridos más de 80 veces, eliminando así todos aquellos usuarios y productos no interesantes para realizar recomendaciones.
+bfcant = bfcant[,-c(1,2)]
+bfcant = bfcant[rowSums(bfcant) > 40,
+                colSums(bfcant) > 80]
+
 
 #Por ultimo se transforma el data frame en una binaryRatingMatrix para poder trabajar y entrenar el modelo.
-bf.bin = data.matrix(bfcant.df)
+bf.bin = data.matrix(bfcant)
 bf.bin = as(bf.bin, "binaryRatingMatrix")
 ```
 
-Una vez tratados los datos se pasa al entrenamiento y predicción del modelo de recomendación, inicialmente se realizará una evaluación mediante validación cruzada para, de esta manera, seleccionar el mejor modelo de recomendación. Una vez seleccionado el modelo que mejor se adapte a las necesidades se construirá un modelo hibrido para que un porcentaje de las recomendaciones salgan de la "zona de confort" del usuario.
+Una vez tratados los datos se realizará el clustering jerarquico y su representación mediante un drendrograma mediante código de python.
+
+```{python}
+import os
+os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = 'C:/Users/Javo/Anaconda3/Library/plugins/platforms' #Me saltaba error sin indicar manualmente el directorio de "platforms" de conda.
+import matplotlib.pyplot as plt
+from scipy.cluster.hierarchy import dendrogram, linkage
+import pandas as pd
+
+clus = linkage(r.bfcant, "ward")
+
+plt.figure(figsize = (60,40))
+plt.title("Dendrograma jerarquico del clustering de usuarios truncado", fontsize = 60)
+plt.xlabel("ID de los compradores", fontsize = 60)
+plt.ylabel("Distancia", fontsize = 60)
+plt.yticks(size = 50)
+dendrogram(clus, leaf_rotation = 90., leaf_font_size = 50.0, truncate_mode = "lastp", p = 40, color_threshold = 40, show_leaf_counts = True, show_contracted = True)
+plt.show()
+```
+
+A una distancia de 40 se generan 10 clusters, aunque como se puede comprobar la cantidad de usuarios en algunos de estos clusters es muy elevada por lo que se pordía dividir en una mayor cantidad. 
+Sin embargo, la realización de este dendrograma era únicamente para comprobar, de manera visual, de que manera se unian los usuarios. Por lo tanto, no se profundizará más en la busqueda del K óptimo para realizar una separación por cluster perfecta, ya que el objetivo es realizar un sistema de recomendación que sea funcional en una hipotética tienda online.
+
+Dicho esto, se procede al entrenamiento y predicción del modelo de recomendación, inicialmente se realizará una evaluación mediante validación cruzada para, de esta manera, seleccionar el mejor modelo de recomendación. Una vez seleccionado el modelo que mejor se adapte a las necesidades se construirá un modelo hibrido para que un porcentaje de las recomendaciones salgan de la "zona de confort" del usuario.
 
 ```{r}
-set.seed(2019)
 
-#Seleccion de usuarios con al menos 40 compras y productos comprados como mínimo 80 veces.
-bf.bin = bf.bin[rowCounts(bf.bin) > 40,
-                colCounts(bf.bin) > 80]
+set.seed(2019)
 
 #Se usa validación cruzada para validar las recomendaciones.
 eval_sets = evaluationScheme(data = bf.bin,
@@ -152,10 +177,13 @@ res.jac = evaluate(x = eval_sets,
                  method = "UBCF", parameter = list(method = "Jaccard"),
                  n = seq(10,100,10))
 getConfusionMatrix(res.jac)[[1]]
-plot(res.jac, "prec/rec", annotate = T, main = "Precisión vs Eficacia (UBFC Jaccard)")
 ```
 
 En la tabla hay datos interesantes sobre el modelo como son la precisión, el recall (eficacia), así como los ratios de verdaderos positivos y falsos positivos.
+
+```{r}
+plot(res.jac, "prec/rec", annotate = T, main = "Precisión vs Eficacia (UBFC Jaccard)")
+```
 
 No obstante, la precisión y la eficacia se interpretan con mayor facilidad en la tabla, con 10 recomendaciones la precisión (porcentaje de veces que el modelo recomienda un producto que realmente es comprado frente al total de recomendaciones realizadas) es del `r round(getConfusionMatrix(res.jac)[[1]][1,5] * 100, 2)`%. Lo que significa que si nos basamos en los resultados de esta evaluación si recomendamos 10 productos a cada usuario este considerará de su interés entre 3 y 4 de ellos.
 Por otro lado, la eficacia o recall (porcentaje de productos interesantes recomendados por el modelo sobre el total de productos interesantes para el usuario) es del `r round(getConfusionMatrix(res.jac)[[1]][1,6] * 100, 2)`%. No es de extrañar que el porcentaje sea tan bajo ya que unicamente se estan recomendando 10 productos, que con 10 productos se cubra el `r round(getConfusionMatrix(res.jac)[[1]][1,6] * 100, 2)`% del total de productos interesantes para un usuario parece ser más que decente.

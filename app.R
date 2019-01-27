@@ -1,6 +1,7 @@
 
 library(shiny)
 library(ggplot2)
+
 ui = fluidPage(
   tags$style(type="text/css", "h1{text-align:center;}"),
              
