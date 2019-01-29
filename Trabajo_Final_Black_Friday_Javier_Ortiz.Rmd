@@ -18,6 +18,7 @@ library(GGally)
 library(recommenderlab)
 library(caret)
 library(reticulate)
+library(shiny)
 ```
 
 Lo primero a la hora de tratar los datos será su carga, comprobación, limpieza de NAs, y transformación de las variables a formatos optimos.
@@ -48,7 +49,12 @@ Se integra una gráfica dinámica mediante shiny para realizar los cruces basico
 
 ```{r}
 #En mi pc tarda un poco en cargar los gráficos. Espero que con un procesador más potente sea más fluido.
-#knitr::include_app("http://127.0.0.1:4231", height = 750)
+if (interactive()) {
+  runGitHub("Javomgo/Black-Friday", port=2019)
+}
+#Es necesario lanzar primero el shiny y después hacer el knit para que aparezca en el html. 
+#He intentado subirlo a shinyapps.io para tenerlo activo y evitar esa necesidad, pero la versión gratuita no tiene memoria suficiente para soportarlo.
+knitr::include_app("http://127.0.0.1:2019", height = 750)
 ```
 
 Es digno de mención el hecho de que la categoría de producto con mayor gasto es la 1 y sin embargo en unidades este puesto pertenece a la categoría 5 (Como se puede comprobar al realizar el summary).
@@ -76,7 +82,7 @@ bfcant.df = bf.df %>% group_by(User_ID) %>% summarise(Gender = Gender[1],Age = A
 ggpairs(bfcant.df[,c(5:8)], cardinality_threshold = 21, aes(color = bfcant.df$Gender, alpha = 0.5))
 ```
 
-Las gráficas no muestran mucha información nueva, la mayoría de la información que ya se había podido visualizar en la gráfica interactiva.
+Las gráficas no muestran mucha información nueva, únicamente comentar el hecho de que si observamos la cantidad de compradores la categoría ciudad con más compradores es la C con mucha diferencia siendo la B la que tiene mayor gasto total.
 
 Una vez comprobados los datos y tras realizar un análisis por encima de los mismos se puede confirmar que si una empresa decidiera entrar en el mercado la recomendación sería fabricar productos de la categoría 1, y tener una inversión en marketing especialmente dedicada a hombres entre 26 y 35 años, soltero, que resida desde hace un año en una ciudad de categoría B, y que se dedique a la profesión 0, 4 ó 7.
 
@@ -131,7 +137,7 @@ Sin embargo, la realización de este dendrograma era únicamente para comprobar,
 
 Dicho esto, se procede al entrenamiento y predicción del modelo de recomendación, inicialmente se realizará una evaluación mediante validación cruzada para, de esta manera, seleccionar el mejor modelo de recomendación. Una vez seleccionado el modelo que mejor se adapte a las necesidades se construirá un modelo hibrido para que un porcentaje de las recomendaciones salgan de la "zona de confort" del usuario.
 
-```{r}
+```{r results = "hide", message = F}
 
 set.seed(2019)
 
@@ -157,14 +163,14 @@ resul = evaluate(x = eval_sets,
 
 Se comprueban los resultados de la validación cruzada mediante gráficos.
 
-```{r}
+```{r results = "hide", message = F}
 plot(resul, annotate = 1, legend = "topleft") + title("Curva AUC")
 ```
 
 Este primer gráfico muestra el ratio de verdaderos positivos, en el eje de ordenadas, frente al ratio de falsos positivos, en el eje de abscisas.
 Se puede extraer de dicho gráfico que los modelos basados en usuarios tienen un mejor ratio de verdaderos positivos frente a falsos.
 
-```{r}
+```{r results = "hide", message = F}
 plot(resul, "prec/rec", annotate = 1, legend = "bottomright") + title("Precisión vs Eficacia")
 ```
 
@@ -172,7 +178,7 @@ En este caso, el gráfico cruza precisión contra eficacia se puede observar com
 
 Se procede a una evaluación individual del modelo orientado a usuarios con Jaccard en mayor profundidad.
 
-```{r}
+```{r results = "hide", message = F}
 res.jac = evaluate(x = eval_sets,
                  method = "UBCF", parameter = list(method = "Jaccard"),
                  n = seq(10,100,10))
@@ -216,5 +222,5 @@ rec.matrix = sapply(pred@items, function(x){
 rec.matrix[,1:5]
 ```
 
-La matriz muestra las 12 recomendaciones del modelo hibrido para los 5 primeros usuarios del subconjunto de prueba. De esas 12 recomendaciones 10 son basadas en el usuario y 2 aleatorias.
+Para finalizar se muestra la matriz con las 12 recomendaciones del modelo hibrido para los 5 primeros usuarios del subconjunto de prueba. De esas 12 recomendaciones 10 son basadas en el usuario y 2 aleatorias.
 Sería mucho más interesante si se supiera que producto es el recomiendado, desafortunadamente la base de datos no lo especifica, unicamente muestra su código.
